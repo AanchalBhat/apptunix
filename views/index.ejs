@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Simple Group Chat on Node.js</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font: 13px Helvetica, Arial; }
+        #messages { list-style-type: none; margin: 0; padding: 0; }
+        #messages li { padding: 5px 10px; }
+        #messages li:nth-child(odd) { background: #eee; }
+    </style>
+    <script src="../../socket.io/socket.io.js"></script>
+  <!-- CSS only -->
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+
+<!-- JS, Popper.js, and jQuery -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div class="container-fluid">
+      <div class="row" style="display: flex;">
+        <div class="mt-4" style="width:180px">
+          <div class="user-name"></div>
+          <button type="button" id="groupChat" class="btn btn-primary mb-4" style="width:100%">Group chat</button>
+           <h5 style="display:inline">Contact List</h5><small>(Direct chat)</small>
+          <div id="list-example" class="list-group user-list-group">
+        
+          </div>
+        </div>
+        <div style="width:300px;background: #eeeded;min-height:400px">
+          <div class="group-chat">
+          </div>
+          <ul id="messages"></ul>
+          <form class="mt-32" action="/" method="POST" id="chatForm" style="display: flex;position: absolute;bottom:0;width:100%">
+            <input type="text" class="form-control" id="txt" autofocus="on" placeholder="type your message here..." style="width:200px">
+            <button type="submit" class="btn btn-primary">Send</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+    <script>
+            var socket = io.connect('http://localhost:8080');
+            localStorage.clear();
+            // submit text message without reload/refresh the page
+            $('form').submit(function(e){
+                e.preventDefault(); // prevents page reloading
+                var user = localStorage.getItem('userName');
+                var group = localStorage.getItem('groupName');
+                var isGroup = localStorage.getItem('isGroup');
+                if(isGroup === '1') {
+                socket.emit('chat_message', {groupName: group, userName:user, message:$('#txt').val()});
+                }else{
+                  var toUserName = localStorage.getItem('toUser');
+                  socket.emit('chat_message', {groupName: null, userName:null, toUser:toUserName, fromUser:user, message:$('#txt').val()});
+                }
+                $('#messages').append($('<li>').html('<strong>' + user + '</strong>: ' + $('#txt').val()));
+                $('#txt').val('');
+                return false;
+            });
+
+            $('#groupChat').click(function(){
+            // ask username
+              var groupName = prompt('Enter Group Name');
+              localStorage.setItem('groupName', groupName);
+              var userName = localStorage.getItem('userName');
+              localStorage.setItem('isGroup','1');
+              $('#messages').empty();
+              $('.group-chat').append(`<h3>[GROUP NAME: ${groupName}] 😃 <span>(user: ${userName})</span></h3>`)
+              socket.emit('user', {groupName, userName, toUser: null, fromUser: null});
+              })
+
+            // append the chat text message
+            socket.on('chat_message', function(msg){
+              console.log(msg)
+                $('#messages').append($('<li>').html(msg));
+            });
+
+            // append text if someone is online
+            socket.on('is_online', function(username) {
+                $('#messages').append($('<li>').html(username));
+            });
+
+
+            socket.on('registerResponse', function(data){
+              console.log(data)
+              $('.user-list-group').empty();
+                  var ele = ''
+                  for(let i=0;i<data.users.length;i++){
+                    var element = document.createElement('a');
+                      element.textContent = data.users[i];
+                      element.setAttribute('class', 'list-group-item list-group-item-action user-list');
+                      element.addEventListener('click', (e) => {
+                          localStorage.setItem('isGroup','0');
+                          $('#messages').empty();
+                          $('.user-list').removeClass('active');
+                          $(e.target).toggleClass('active');
+                          var toUser = e.target.text;
+                          localStorage.setItem('toUser', toUser)
+                          socket.emit('user', {groupName: null, userName, toUser, fromUser: userName });
+                       
+                      });
+                      document.querySelector('.user-list-group').appendChild(element);
+                  }
+            });
+
+            socket.on('sendErrorResponse', function(data){
+                console.log(data);
+            });
+
+            var userName = prompt('Please tell me your name');
+            localStorage.setItem('userName', userName);
+            socket.emit('registerUser', {groupName: null, userName, toUser: null, fromUser: null });
+            $('.user-name').append(`<h4>User: ${userName} 😃 </h4>`)
+    </script>
+  </body>
+</html>
